@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+.link {
+  fill: none;
+  stroke: #666;
+  stroke-width: 1.5px;
+}
+
+#licensing {
+  fill: green;
+}
+
+.link.licensing {
+  stroke: green;
+}
+
+.link.resolved {
+  stroke-dasharray: 0,2 1;
+}
+
+circle {
+  fill: #ccc;
+  stroke: #333;
+  stroke-width: 1.5px;
+}
+
+Square {
+  fill: #ccc;
+  stroke: #333;
+  stroke-width: 1.5px;
+}
+
+text {
+  font: 9px sans-serif;
+  pointer-events: none;
+  text-shadow: 0 1px 0 #fff, 1px 0 0 #fff, 0 -1px 0 #fff, -1px 0 0 #fff;
+}
+
+</style>
+<body>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script>
+
+// http://blog.thomsonreuters.com/index.php/mobile-patent-suits-graphic-of-the-day/
+var links = [
+  {source: "州刺史", target: "防禦使", type: "suit"},
+  {source: "奉國都校", target: "奉國軍主", type: "suit"},
+  {source: "節度使", target: "同中書門下平章事", type: "resolved"},
+  {source: "州刺史", target: "團練使", type: "suit"},
+  {source: "奉國都虞候", target: "奉國都校", type: "suit"},
+  {source: "奉國軍主", target: "奉國軍都指揮使", type: "suit"},
+  {source: "州刺史", target: "奉國軍都指揮使", type: "suit"},
+  {source: "奉國軍都指揮使", target: "州刺史", type: "resolved"},
+  {source: "奉國軍主", target: "奉國右廂都指揮使", type: "suit"},
+  {source: "奉國左廂都指揮使", target: "侍衛步軍都指揮使", type: "suit"},
+  {source: "侍衛步軍都指揮使", target: "節度使", type: "resolved"},
+  {source: "州刺史", target: "節度使", type: "unresolved"},
+  {source: "奉國軍校", target: "奉國都虞候", type: "suit"},
+  {source: "防禦使", target: "節度使", type: "suit"},
+  {source: "團練使", target: "節度使", type: "suit"},
+  {source: "奉國右廂都指揮使", target: "防禦使", type: "suit"},
+  {source: "樞密使", target: "節度使", type: "resolved"},
+  {source: "宣徽南院使", target: "樞密使", type: "suit"},
+  {source: "宣徽北院使", target: "宣徽南院使", type: "suit"},
+  {source: "內客省使", target: "宣徽北院使", type: "suit"},
+  {source: "客省使", target: "內客省使", type: "suit"},
+  {source: "左排衙使", target: "客省使", type: "suit"},
+  {source: "內客省使", target: "州刺史", type: "suit"},
+  {source: "同中書門下平章事", target: "節度使", type: "licensing"},
+  {source: "奉國軍都指揮使", target: "奉國左廂都指揮使", type: "suit"},
+  {source: "內酒坊使", target: "州刺史", type: "suit"},
+  {source: "尚食使", target: "內酒坊使", type: "suit"},
+  {source: "閒廄使", target: "尚食使", type: "suit"},
+  {source: "軍器庫使", target: "閒廄使", type: "suit"},
+  {source: "奉國左廂都指揮使", target: "防禦使", type: "suit"},
+  {source: "宣徽南院使", target: "防禦使", type: "resolved"},
+];
+
+var nodes = {};
+
+// Compute the distinct nodes from the links.
+links.forEach(function(link) {
+  link.source = nodes[link.source] || (nodes[link.source] = {name: link.source});
+  link.target = nodes[link.target] || (nodes[link.target] = {name: link.target});
+});
+
+var width = 960,
+    height = 500;
+
+var force = d3.layout.force()
+    .nodes(d3.values(nodes))
+    .links(links)
+    .size([width, height])
+    .linkDistance(60)
+    .charge(-300)
+    .on("tick", tick)
+    .start();
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+// Per-type markers, as they don't inherit styles.
+svg.append("defs").selectAll("marker")
+    .data(["suit", "licensing", "resolved"])
+  .enter().append("marker")
+    .attr("id", function(d) { return d; })
+    .attr("viewBox", "0 -5 10 10")
+    .attr("refX", 15)
+    .attr("refY", -1.5)
+    .attr("markerWidth", 6)
+    .attr("markerHeight", 6)
+    .attr("orient", "auto")
+  .append("path")
+    .attr("d", "M0,-5L10,0L0,5");
+
+var path = svg.append("g").selectAll("path")
+    .data(force.links())
+  .enter().append("path")
+    .attr("class", function(d) { return "link " + d.type; })
+    .attr("marker-end", function(d) { return "url(#" + d.type + ")"; });
+
+var circle = svg.append("g").selectAll("circle")
+    .data(force.nodes())
+  .enter().append("circle")
+    .attr("r", 6)
+    .call(force.drag);
+
+var text = svg.append("g").selectAll("text")
+    .data(force.nodes())
+  .enter().append("text")
+    .attr("x", 8)
+    .attr("y", ".31em")
+    .text(function(d) { return d.name; });
+
+// Use elliptical arc path segments to doubly-encode directionality.
+function tick() {
+  path.attr("d", linkArc);
+  circle.attr("transform", transform);
+  text.attr("transform", transform);
+}
+
+function linkArc(d) {
+  var dx = d.target.x - d.source.x,
+      dy = d.target.y - d.source.y,
+      dr = Math.sqrt(dx * dx + dy * dy);
+  return "M" + d.source.x + "," + d.source.y + "A" + dr + "," + dr + " 0 0,1 " + d.target.x + "," + d.target.y;
+}
+
+function transform(d) {
+  return "translate(" + d.x + "," + d.y + ")";
+}
+
+</script>
